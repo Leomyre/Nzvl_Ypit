@@ -13,26 +13,36 @@ class AgenceVoyage(models.Model):
     nif = models.CharField(max_length=50)
     stat = models.CharField(max_length=50)
     mail = models.EmailField()
-    responsable = models.ForeignKey("Accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="agences")  # Responsable de l'agence
+
+    # Association à un responsable (filtrage sur le type d'utilisateur "Responsable")
+    responsable = models.ForeignKey("Accounts.CustomUser", on_delete=models.SET_NULL, null=True, blank=True, related_name="agences", limit_choices_to={'user_type': 'Responsable'})
 
     def __str__(self):
         return self.nom
 
-class Voyage(models.Model):
-    nom = models.CharField(max_length=100)
+class Trajet(models.Model):
+    voyage = models.ForeignKey("Voyage", on_delete=models.CASCADE, related_name="trajets")
     ville_depart = models.CharField(max_length=100)
     date_depart = models.DateTimeField()
     ville_arrive = models.CharField(max_length=100)
     date_arrive_prevu = models.DateTimeField()
     date_arrive_reel = models.DateTimeField(null=True, blank=True)
+
+    # Relation ManyToMany avec TypesTransport
+    types_transport = models.ManyToManyField(TypesTransport, related_name="trajets")
+
+    def __str__(self):
+        return f"Trajet de {self.ville_depart} à {self.ville_arrive}"
+
+class Voyage(models.Model):
+    nom = models.CharField(max_length=100)
     prix = models.DecimalField(max_digits=10, decimal_places=2)
     place = models.IntegerField()
 
-    types_transport = models.ManyToManyField(TypesTransport, related_name="voyages")  # Plusieurs types de transport possibles
-    agence = models.ForeignKey(AgenceVoyage, on_delete=models.CASCADE, related_name="voyages")  # Une agence peut avoir plusieurs voyages
+    agence = models.ForeignKey(AgenceVoyage, on_delete=models.CASCADE, related_name="voyages")
 
     def __str__(self):
-        return self.nom
+        return f"Voyage {self.nom}"
 
     def moyenne_notes(self):
         moyenne = self.avis.aggregate(Avg('note'))['note__avg']
@@ -40,14 +50,31 @@ class Voyage(models.Model):
 
     @staticmethod
     def voyages_populaires():
-        return Voyage.objects.annotate(moyenne=Avg('avis__note')).order_by('-moyenne')[:5]  # Top 5 voyages
+        return Voyage.objects.annotate(moyenne=Avg('avis__note')).order_by('-moyenne')[:5]
 
 class AvisVoyage(models.Model):
     voyage = models.ForeignKey(Voyage, on_delete=models.CASCADE, related_name="avis")
-    utilisateur = models.ForeignKey("Accounts.User", on_delete=models.CASCADE)  # Adapté selon ton modèle User
-    note = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])  # Notes de 1 à 5
+    utilisateur = models.ForeignKey("Accounts.CustomUser", on_delete=models.CASCADE)
+    note = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])
     commentaire = models.TextField(blank=True, null=True)
     date_ajout = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Avis {self.note}/5 pour {self.voyage.nom} par {self.utilisateur.username}"
+
+class ReservationVoyage(models.Model):
+    client = models.ForeignKey("Accounts.CustomUser", on_delete=models.CASCADE, related_name="reservations")
+    voyage = models.ForeignKey("Voyage", on_delete=models.CASCADE, related_name="reservations")
+    date_reservation = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Réservation de {self.client.username} pour {self.voyage.nom}"
+
+class InteractionVoyage(models.Model):
+    client = models.ForeignKey("Accounts.CustomUser", on_delete=models.CASCADE, related_name="interactions")
+    voyage = models.ForeignKey("Voyage", on_delete=models.CASCADE, related_name="interactions")
+    type_interaction = models.CharField(max_length=50, choices=[("view", "Consulté"), ("like", "Aimé"), ("favorite", "Favori")])
+    date_interaction = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.client.username} - {self.type_interaction} - {self.voyage.nom}"

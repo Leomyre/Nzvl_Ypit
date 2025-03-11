@@ -1,36 +1,45 @@
-from django.db import models
+import random
+import string
 from django.contrib.auth.models import AbstractUser
+from django.db import models
+from phonenumber_field.modelfields import PhoneNumberField
 
-class User(AbstractUser):
-    USER_TYPE_CHOICES = (
-        (1, 'Client'),
-        (2, 'Responsable'),
-        (3, 'Admin'),
-    )
-    user_type = models.PositiveSmallIntegerField(choices=USER_TYPE_CHOICES, default=1)
+def generate_verification_code():
+    return ''.join(random.choices(string.digits, k=6))
 
-    # Ajout des related_name pour éviter les conflits avec AbstractUser
-    groups = models.ManyToManyField(
-        "auth.Group",
-        related_name="custom_user_set",
+class UserType(models.TextChoices):
+    CLIENT = "Client", "Client"
+    RESPONSABLE = "Responsable", "Responsable"
+    ADMIN = "Admin", "Admin"
+
+class CustomUser(AbstractUser):
+    email = models.EmailField(unique=True)
+    gender = models.CharField(
+        max_length=10,
+        choices=[("Homme", "Homme"), ("Femme", "Femme"), ("Autre", "Autre")],
         blank=True
     )
-    user_permissions = models.ManyToManyField(
-        "auth.Permission",
-        related_name="custom_user_permissions_set",
-        blank=True
-    )
+    nationality = models.CharField(max_length=50, blank=True)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    profile_picture = models.ImageField(upload_to="profile_pictures/", blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    phone_number = PhoneNumberField(blank=True, null=True)
+    registration_date = models.DateTimeField(auto_now_add=True)
+    user_type = models.CharField(max_length=12, choices=UserType.choices, default=UserType.CLIENT)
 
+    # Vérification email
+    is_verified = models.BooleanField(default=False)
+    verification_code = models.CharField(max_length=6, default=generate_verification_code)
 
-class Client(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    address = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=15)
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
 
-class Responsable(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    department = models.CharField(max_length=100)
+    def __str__(self):
+        return f"{self.email} ({self.get_user_type_display()})"
+    
+    def is_client(self):
+        return self.user_type == UserType.CLIENT
 
-class Admin(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    privileges = models.TextField()
+    def is_responsable(self):
+        return self.user_type == UserType.RESPONSABLE

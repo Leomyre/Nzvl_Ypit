@@ -1,7 +1,9 @@
 from django.urls import path
-from .views import voyages_disponibles, voyages_populaires
+from . import views
 
 urlpatterns = [
-    path('voyages/', voyages_disponibles, name='voyages-disponibles'),
-    path('voyages-populaires/', voyages_populaires, name='voyages-populaires'),
+    path('voyages/populaires/', views.VoyagePopulaireView.as_view(), name='voyages_populaires'),
+    path('voyages/', views.VoyageDisponibleView.as_view(), name='voyages_disponibles'),
+    path('voyages/<int:pk>/', views.VoyageDetailView.as_view(), name='voyage-detail'),
+    path("reservations/", views.ReservationVoyageListView.as_view(), name="reservation-list"),
 ]

@@ -1,44 +1,51 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Client, Responsable, Admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'user_type', 'is_active']
-
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'user_type']
+        fields = [
+            'email', 'username', 'password', 'password2', 'gender', 'nationality', 
+            'age', 'profile_picture', 'city', 'country', 'user_type'
+        ]
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Les mots de passe ne correspondent pas."})
+        return attrs
 
     def create(self, validated_data):
+        validated_data.pop('password2')
         user = User.objects.create_user(**validated_data)
         return user
 
+
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
-class UpdateUserProfileSerializer(serializers.ModelSerializer):
+    def validate(self, data):
+        user = User.objects.filter(email=data['email']).first()
+        if user and user.check_password(data['password']):
+            return user
+        raise serializers.ValidationError("Identifiants invalides.")
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name']
+        fields = ['email', 'username', 'gender', 'nationality', 'age', 'profile_picture', 'city', 'country', 'user_type']
+        read_only_fields = ['email']  # On peut rendre l'email en lecture seule si nécessaire
 
     def update(self, instance, validated_data):
-        """
-        Personnaliser la méthode update pour éviter la mise à jour de certains champs
-        comme le mot de passe. Cette méthode ne fait rien si le mot de passe est modifié.
-        """
-        instance.username = validated_data.get('username', instance.username)
-        instance.email = validated_data.get('email', instance.email)
-        instance.first_name = validated_data.get('first_name', instance.first_name)
-        instance.last_name = validated_data.get('last_name', instance.last_name)
-
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
         instance.save()
         return instance
