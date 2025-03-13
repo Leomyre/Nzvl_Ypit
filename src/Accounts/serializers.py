@@ -12,7 +12,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'email', 'username', 'password', 'password2', 'gender', 'nationality', 
+            'email', 'username', 'password', 'password2', 'gender', 'nationality', 'phone_number',
             'age', 'profile_picture', 'city', 'country', 'user_type'
         ]
 
@@ -41,7 +41,7 @@ class LoginSerializer(serializers.Serializer):
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['email', 'username', 'gender', 'nationality', 'age', 'profile_picture', 'city', 'country', 'user_type']
+        fields = ['email', 'username', 'gender', 'nationality','phone_number', 'age', 'profile_picture', 'city', 'country', 'user_type']
         read_only_fields = ['email']  # On peut rendre l'email en lecture seule si nécessaire
 
     def update(self, instance, validated_data):

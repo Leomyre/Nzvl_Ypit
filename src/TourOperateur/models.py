@@ -1,5 +1,7 @@
+#Dans TourOperateur/models.py
 from django.db import models
 from django.db.models import Avg
+from django.conf import settings
 
 class TypesTransport(models.Model):
     nom = models.CharField(max_length=50)
@@ -20,20 +22,6 @@ class AgenceVoyage(models.Model):
     def __str__(self):
         return self.nom
 
-class Trajet(models.Model):
-    voyage = models.ForeignKey("Voyage", on_delete=models.CASCADE, related_name="trajets")
-    ville_depart = models.CharField(max_length=100)
-    date_depart = models.DateTimeField()
-    ville_arrive = models.CharField(max_length=100)
-    date_arrive_prevu = models.DateTimeField()
-    date_arrive_reel = models.DateTimeField(null=True, blank=True)
-
-    # Relation ManyToMany avec TypesTransport
-    types_transport = models.ManyToManyField(TypesTransport, related_name="trajets")
-
-    def __str__(self):
-        return f"Trajet de {self.ville_depart} à {self.ville_arrive}"
-
 class Voyage(models.Model):
     nom = models.CharField(max_length=100)
     prix = models.DecimalField(max_digits=10, decimal_places=2)
@@ -51,6 +39,21 @@ class Voyage(models.Model):
     @staticmethod
     def voyages_populaires():
         return Voyage.objects.annotate(moyenne=Avg('avis__note')).order_by('-moyenne')[:5]
+    
+
+class Trajet(models.Model):
+    voyage = models.ForeignKey("Voyage", on_delete=models.CASCADE, related_name="trajets")
+    ville_depart = models.CharField(max_length=100)
+    date_depart = models.DateTimeField()
+    ville_arrive = models.CharField(max_length=100)
+    date_arrive_prevu = models.DateTimeField()
+    date_arrive_reel = models.DateTimeField(null=True, blank=True)
+
+    # Relation ManyToMany avec TypesTransport
+    types_transport = models.ManyToManyField(TypesTransport, related_name="trajets")
+
+    def __str__(self):
+        return f"Trajet de {self.ville_depart} à {self.ville_arrive}"
 
 class AvisVoyage(models.Model):
     voyage = models.ForeignKey(Voyage, on_delete=models.CASCADE, related_name="avis")
@@ -78,3 +81,11 @@ class InteractionVoyage(models.Model):
     
     def __str__(self):
         return f"{self.client.username} - {self.type_interaction} - {self.voyage.nom}"
+
+class HistoriqueConsultation(models.Model):
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    voyage = models.ForeignKey('Voyage', on_delete=models.CASCADE)
+    date_consultation = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.client.email} a consulté {self.voyage} le {self.date_consultation}"

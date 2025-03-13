@@ -1,3 +1,4 @@
+#Dans Accounts/models.py
 import random
 import string
 from django.contrib.auth.models import AbstractUser

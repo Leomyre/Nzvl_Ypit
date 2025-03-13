@@ -93,3 +93,12 @@ class VerifyEmailView(APIView):
             return Response({"error": "Code invalide."}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response({"error": "Utilisateur introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+#affiche le profil de l'user
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]  # L'utilisateur doit être connecté
+
+    def get(self, request):
+        user = request.user  # Récupère l'utilisateur connecté
+        serializer = RegisterSerializer(user)  # Utilise un serializer pour formater les données
+        return Response(serializer.data, status=status.HTTP_200_OK)
