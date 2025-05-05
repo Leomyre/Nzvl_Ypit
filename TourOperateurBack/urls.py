@@ -19,8 +19,8 @@ urlpatterns = [
     path('api/finances/', include('finances.urls')),
     path('api/analytics/', include('analytics.urls')),
     path('api/recommandations/', include('recommandations.urls')),
-    path('api/carte/', include('carte.urls')),
     path('api/insights/', include('insights.urls')),
+    path('api/notifications/', include('notifications.urls')),
 ]
 
 if settings.DEBUG:

@@ -59,7 +59,6 @@ INSTALLED_APPS = [
     'reservations',
     'finances',
     'recommandations',
-    'carte',
     'analytics',
     'insights',
     'notifications'
@@ -110,7 +109,7 @@ EMAIL_HOST_PASSWORD = "mgsh bkgt wgkj fars"
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-GEMINI_API_KEY = 'your_gemini_api_key_here'
+GEMINI_API_KEY = 'AIzaSyCtafLavq2NAObPOjv7VHI0j971CP6Wd8Q'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
