@@ -38,7 +38,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password', 'is_client', 'is_responsable', 'phone_number', 'tour_operator_info')
+        fields = ('id', 'username', 'email', 'password','nationality' ,'is_client', 'is_responsable', 'phone_number', 'tour_operator_info')
         extra_kwargs = {
             'password': {'write_only': True},
             'is_client': {'required': False},

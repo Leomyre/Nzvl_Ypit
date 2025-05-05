@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import User, Profile
@@ -88,16 +88,10 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ProfileViewSet(viewsets.ModelViewSet):
+class ProfileViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin, mixins.UpdateModelMixin):
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        # Retourne uniquement le profil de l'utilisateur connecté
-        return Profile.objects.filter(user=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def my_profile(self, request):
-        profile = request.user.profile
-        serializer = self.get_serializer(profile)
-        return Response(serializer.data)
+    def get_object(self):
+        # Retourne le profil de l'utilisateur connecté
+        return self.request.user.profile

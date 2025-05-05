@@ -13,6 +13,7 @@ class User(AbstractUser):
     email = models.EmailField(_('email address'), unique=True)
     is_client = models.BooleanField(default=False)
     is_responsable = models.BooleanField(default=False)
+    nationality = models.TextField(max_length=15, blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email_confirmed = models.BooleanField(default=False)
     confirmation_token = models.UUIDField(default=uuid.uuid4, editable=False, null=True, blank=True)
