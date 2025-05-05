@@ -82,7 +82,7 @@ class Voyage(models.Model):
     est_recommande = models.BooleanField(default=False)
     responsable = models.ForeignKey(User, on_delete=models.CASCADE, related_name='responsable_voyages', null=True, blank=True)
     nb_consultations = models.IntegerField(default=0)
-    images = models.JSONField(default=list, blank=True, null=True, help_text="Liste d'URLs d'images pour ce voyage")
+    images = models.ImageField(upload_to='voyages/', blank=True, null=True, help_text="Image principale du voyages")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -92,8 +92,6 @@ class Voyage(models.Model):
 
     def clean(self):
         super().clean()
-        if self.date_depart < timezone.now().date():
-            raise ValidationError("La date de départ ne peut pas être dans le passé.")
         if self.prix < 0:
             raise ValidationError("Le prix ne peut pas être négatif.")
 
@@ -196,4 +194,8 @@ class HistoriqueConsultation(models.Model):
     utilisateur = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     voyage = models.ForeignKey(Voyage, on_delete=models.CASCADE)
     date_consultation = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ['-date_consultation']
 
+    def __str__(self):
+        return f"{self.utilisateur} a consulté {self.voyage} le {self.date_consultation}"

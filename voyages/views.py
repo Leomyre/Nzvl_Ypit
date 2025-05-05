@@ -1,4 +1,4 @@
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.decorators import action
@@ -8,10 +8,11 @@ from .models import Destination, Voyage, ProgrammeJour, Inclusion, Activite, Avi
 from .serializers import (
     DestinationSerializer, VoyageSerializer, VoyageDetailSerializer,
     ProgrammeJourSerializer, InclusionSerializer, ActiviteSerializer,
-    AvisSerializer, CreateAvisSerializer
+    AvisSerializer, CreateAvisSerializer, HistoriqueConsultationSerializer
 )
 from reservations.serializers import ReservationSerializer
 from rest_framework.views import APIView
+from django.utils.timezone import now
 
 class DestinationViewSet(viewsets.ModelViewSet):
     queryset = Destination.objects.all()
@@ -177,3 +178,41 @@ class VoyagesRecommandesView(APIView):
 
         serializer = VoyageSerializer(voyages_recommandes, many=True)
         return Response(serializer.data)
+    
+class HistoriqueConsultationViewSet(viewsets.ModelViewSet):
+    serializer_class = HistoriqueConsultationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Renvoie les consultations de l'utilisateur connecté
+        return HistoriqueConsultation.objects.filter(utilisateur=self.request.user).order_by('-date_consultation')
+
+    def perform_create(self, serializer):
+        # Si une consultation existe déjà, on la met à jour plutôt que de créer un doublon
+        voyage = serializer.validated_data['voyage']
+        instance, created = HistoriqueConsultation.objects.update_or_create(
+            utilisateur=self.request.user,
+            voyage=voyage,
+            defaults={'date_consultation': now()}
+        )
+        return instance
+
+    @action(detail=False, methods=['post'], url_path='enregistrer')
+    def enregistrer_consultation(self, request):
+        voyage_id = request.data.get("voyage")
+        if not voyage_id:
+            return Response({"detail": "ID de voyage manquant."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            voyage = Voyage.objects.get(pk=voyage_id)
+        except Voyage.DoesNotExist:
+            return Response({"detail": "Voyage introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        obj, _ = HistoriqueConsultation.objects.update_or_create(
+            utilisateur=request.user,
+            voyage=voyage,
+            defaults={"date_consultation": now()}
+        )
+
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

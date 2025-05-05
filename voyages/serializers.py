@@ -16,7 +16,9 @@ class DestinationSerializer(serializers.ModelSerializer):
         return obj.voyages.count()  # Utilise le related_name si défini
     
     def get_voyages_ids(self, obj):
-        voyages = obj.voyages.all().values('id', 'titre', 'prix')
+        voyages = obj.voyages.all().values('id', 'titre', 'prix', 'niveau_confort', 'images')
+        for voyage in voyages:
+            voyage['destination_nom'] = obj.nom  # Ajoute le nom de la destination
         return list(voyages)
 
     # Validation supplémentaire pour la création
@@ -116,8 +118,10 @@ class CreateAvisSerializer(serializers.ModelSerializer):
         fields = ['note', 'commentaire']
 
 class HistoriqueConsultationSerializer(serializers.ModelSerializer):
-    voyage = VoyageSerializer()
+    titre = serializers.CharField(source='voyage.titre', read_only=True)
+    destination_nom = serializers.CharField(source='voyage.destination', read_only=True)
+    prix = serializers.DecimalField(source='voyage.prix', max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = HistoriqueConsultation
-        fields = ['voyage', 'date_consultation']
+        fields = ['id', 'titre', 'destination_nom', 'date_consultation', 'prix', 'voyage']

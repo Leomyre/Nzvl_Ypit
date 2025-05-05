@@ -5,7 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'destinations', views.DestinationViewSet)
 router.register(r'voyages', views.VoyageViewSet)
-router.register(r'activites', views.ActiviteViewSet)
+router.register(r'consultations', views.HistoriqueConsultationViewSet, basename='consultation')
 
 urlpatterns = [
     path('', include(router.urls)),
