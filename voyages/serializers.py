@@ -39,9 +39,6 @@ class ProgrammeJourSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProgrammeJour
         fields = '__all__'
-        extra_kwargs = {
-            'voyage': {'read_only': True}
-        }
 
 class InclusionSerializer(serializers.ModelSerializer):
     class Meta:

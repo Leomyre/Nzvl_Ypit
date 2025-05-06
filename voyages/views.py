@@ -118,6 +118,12 @@ class ProgrammeJourViewSet(viewsets.ModelViewSet):
             print(serializer.errors)
         serializer.save(voyage=voyage)
 
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        if response.status_code == 400:
+            print("Erreur de validation PUT:", response.data)
+        return response
+
 
 class InclusionViewSet(viewsets.ModelViewSet):
     queryset = Inclusion.objects.all()
