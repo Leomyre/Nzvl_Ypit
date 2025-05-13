@@ -15,6 +15,7 @@ from django.db.models.functions import TruncMonth
 from django.utils.timezone import now
 from datetime import timedelta
 from decimal import Decimal
+import uuid
 
 class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.all()
@@ -45,10 +46,71 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # Utilisateur normal - seulement ses réservations
         return queryset.filter(utilisateur=user)
 
-    def perform_create(self, serializer):
-        voyage = serializer.validated_data.get('voyage')
+    def create(self, request, *args, **kwargs):
+        voyage_id = request.data.get('voyage')
+        utilisateur = request.user
+        
+        try:
+            # Essaye de récupérer une réservation existante
+            reservation = Reservation.objects.get(
+                utilisateur=utilisateur,
+                voyage_id=voyage_id
+            )
             
-        serializer.save(utilisateur=self.request.user)
+            # Mise à jour complète de la réservation existante
+            serializer = self.get_serializer(reservation, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Reservation.DoesNotExist:
+            # Création d'une nouvelle réservation
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(utilisateur=utilisateur)
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+    
+    @action(detail=False, methods=['post'], url_path='verifier-reservation')
+    def verifier_reservation(self, request):
+        voyage_id = request.data.get('voyage')
+        utilisateur = request.user
+        
+        try:
+            voyage = Voyage.objects.get(pk=voyage_id)
+        except Voyage.DoesNotExist:
+            return Response(
+                {"detail": "Voyage introuvable"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        reservation = Reservation.objects.filter(
+            utilisateur=utilisateur,
+            voyage=voyage
+        ).exclude(statut='annulee').first()
+        
+        if reservation:
+            if reservation.est_payee():
+                return Response({
+                    "status": "deja_reserve",
+                    "message": "Vous avez déjà une réservation payée pour ce voyage",
+                    "reservation_id": reservation.id
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "status": "paiement_requis",
+                    "message": "Vous avez une réservation en attente de paiement",
+                    "reservation_id": reservation.id,
+                    "montant_restant": reservation.prix_total - reservation.montant_paye()
+                }, status=status.HTTP_200_OK)
+        
+        # Aucune réservation existante - prêt pour nouvelle réservation
+        return Response({
+            "status": "nouvelle_reservation",
+            "message": "Aucune réservation existante"
+        }, status=status.HTTP_200_OK)
 
     def perform_update(self, serializer):
         instance = self.get_object()
@@ -157,6 +219,19 @@ class PaiementViewSet(viewsets.ModelViewSet):
             
         # Clients normaux voient leurs propres paiements
         return queryset.filter(reservation__utilisateur=user)
+    
+    def perform_create(self, serializer):
+        # Assure qu'une référence unique est générée
+        if not serializer.validated_data.get('reference'):
+            serializer.validated_data['reference'] = str(uuid.uuid4())
+        
+        paiement = serializer.save()
+        
+        if paiement.montant > 0 and paiement.statut == "complete":
+            reservation = paiement.reservation
+            reservation.est_confirmee = True
+            reservation.save()
+
 
     @action(detail=True, methods=['post'])
     def marquer_complete(self, request, pk=None):

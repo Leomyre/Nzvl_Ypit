@@ -7,20 +7,89 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name', 
-            'is_client', 'is_responsable', 'phone_number'
+            'is_client', 'is_responsable', 'phone_number','nationality'
         ]
         read_only_fields = ['id']
+        extra_kwargs = {
+            'email': {
+                'validators': []  # Désactive temporairement la validation unique
+            },
+            'username': {
+                'validators': []  # Désactive temporairement la validation unique
+            }
+        }
 
 class ProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    user = UserSerializer()
     
     class Meta:
         model = Profile
-        fields = [
-            'id', 'user', 'avatar', 'date_of_birth', 'address', 
-            'preferences', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['photoUrl', 'user']
+        extra_kwargs = {
+            'photoUrl': {
+                'required': False,
+                'allow_null': True
+            }
+        }
+
+    def validate(self, attrs):
+        user_data = attrs.get('user', {})
+        request_user = self.context['request'].user
+        
+        # Vérification email unique
+        if 'email' in user_data:
+            if User.objects.filter(email=user_data['email']).exclude(id=request_user.id).exists():
+                raise serializers.ValidationError({
+                    'user': {'email': 'Cet email est déjà utilisé.'}
+                })
+        
+        # Vérification username unique
+        if 'username' in user_data:
+            if User.objects.filter(username=user_data['username']).exclude(id=request_user.id).exists():
+                raise serializers.ValidationError({
+                    'user': {'username': 'Ce nom d\'utilisateur est déjà pris.'}
+                })
+        
+        return attrs
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        user = instance.user
+        
+        # Mise à jour utilisateur
+        for attr, value in user_data.items():
+            setattr(user, attr, value)
+        user.save()
+        
+        # Mise à jour profil
+        if 'photoUrl' in validated_data:
+            # Si photoUrl est une string et pas un fichier, ne pas écraser
+            if not isinstance(validated_data['photoUrl'], str):
+                instance.photoUrl = validated_data['photoUrl']
+        
+        instance.save()
+        return instance
+    user = UserSerializer()
+    
+    class Meta:
+        model = Profile
+        fields = ['photoUrl', 'date_of_birth', 'address', 'preferences', 'user']
+        extra_kwargs = {
+            'photoUrl': {'required': False, 'allow_null': True}
+        }
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        user = instance.user
+        
+        # Mise à jour de l'utilisateur
+        if user_data:
+            user_serializer = UserSerializer(user, data=user_data, partial=True)
+            user_serializer.is_valid(raise_exception=True)
+            user_serializer.save()
+        
+        # Mise à jour du profil
+        return super().update(instance, validated_data)
 
 class TourOperatorInfoSerializer(serializers.ModelSerializer):
     """ Serializer pour les infos de tour opérateur """

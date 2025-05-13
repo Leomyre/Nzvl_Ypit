@@ -5,6 +5,9 @@ from .models import User, Profile
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import update_session_auth_hash
 from .serializers import *
+from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import api_view
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
@@ -87,11 +90,40 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Avatar mis à jour', 'avatar_url': serializer.data.get('avatar')})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class ProfileViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin, mixins.UpdateModelMixin):
+    queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]  # Important pour les fichiers
 
     def get_object(self):
-        # Retourne le profil de l'utilisateur connecté
         return self.request.user.profile
+
+    @action(detail=False, methods=['put'], parser_classes=[MultiPartParser, FormParser])
+    def update_profile(self, request):
+        profile = request.user.profile
+        serializer = ProfileSerializer(
+            profile, 
+            data=request.data, 
+            partial=True,
+            context={'request': request}
+        )
+        
+        if not serializer.is_valid():
+            return Response(
+                {'errors': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            serializer.save()
+            return Response(
+                ProfileSerializer(profile, context={'request': request}).data,
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+

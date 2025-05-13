@@ -1,15 +1,19 @@
+from reservations.models import Reservation
 from rest_framework import viewsets, generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.db import models
+from django.db.models import Sum, F, ExpressionWrapper, FloatField, Count, Avg
+from django.db.models.functions import TruncMonth
 from .models import Destination, Voyage, ProgrammeJour, Inclusion, Activite, Avis, HistoriqueConsultation
 from .serializers import (
     DestinationSerializer, VoyageSerializer, VoyageDetailSerializer,
     ProgrammeJourSerializer, InclusionSerializer, ActiviteSerializer,
     AvisSerializer, CreateAvisSerializer, HistoriqueConsultationSerializer
 )
+from decimal import Decimal
 from reservations.serializers import ReservationSerializer
 from rest_framework.views import APIView
 from django.utils.timezone import now
@@ -33,19 +37,185 @@ class DestinationViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=False, methods=['get'])
+    def revenue_stats(self, request):
+        """
+        Retourne les statistiques de revenus par destination avec :
+        - Revenu total
+        - Revenu par destination
+        - Revenu par pays
+        - Tendance mensuelle
+        """
+        try:
+            # 1. Revenu total
+            total_revenue = self.calculate_total_revenue()
+            
+            # 2. Revenu par destination (détaillé)
+            revenue_by_destination = self.get_revenue_by_destination()
+            
+            # 3. Revenu par pays
+            revenue_by_country = self.get_revenue_by_country()
+            
+            # 4. Tendance mensuelle
+            monthly_trend = self.get_monthly_revenue_trend()
+
+            return Response({
+                'success': True,
+                'data': {
+                    'total_revenue': total_revenue,
+                    'by_destination': revenue_by_destination,
+                    'by_country': revenue_by_country,
+                    'monthly_trend': monthly_trend
+                }
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+    def calculate_total_revenue(self):
+        """Calcule le revenu total de toutes les réservations"""
+        from django.db.models import Sum
+        from voyages.models import Voyage
+        
+        return Voyage.objects.aggregate(
+            total_revenue=Sum(
+                ExpressionWrapper(
+                    F('reservations__nb_adultes') * F('prix_adulte') + 
+                    F('reservations__nb_enfants') * F('prix_enfant'),
+                    output_field=FloatField()
+                )
+            )
+        )['total_revenue'] or 0
+
+    def get_revenue_by_destination(self):
+        """Retourne le revenu détaillé par destination"""
+        from .models import Destination
+        
+        return Destination.objects.annotate(
+            adult_reservations=Sum('voyages__reservations__nb_adultes'),
+            child_reservations=Sum('voyages__reservations__nb_enfants'),
+            adult_revenue=Sum(
+                ExpressionWrapper(
+                    F('voyages__reservations__nb_adultes') * F('voyages__prix_adulte'),
+                    output_field=FloatField()
+                )
+            ),
+            child_revenue=Sum(
+                ExpressionWrapper(
+                    F('voyages__reservations__nb_enfants') * F('voyages__prix_enfant'),
+                    output_field=FloatField()
+                )
+            ),
+            total_revenue=F('adult_revenue') + F('child_revenue')
+        ).values(
+            'id',
+            'nom',
+            'pays',
+            'adult_reservations',
+            'child_reservations',
+            'adult_revenue',
+            'child_revenue',
+            'total_revenue'
+        ).order_by('-total_revenue')
+
+    def get_revenue_by_country(self):
+        """Retourne le revenu agrégé par pays"""
+        from .models import Destination
+        
+        return Destination.objects.values('pays').annotate(
+            total_revenue=Sum(
+                ExpressionWrapper(
+                    F('voyages__reservations__nb_adultes') * F('voyages__prix_adulte') +
+                    F('voyages__reservations__nb_enfants') * F('voyages__prix_enfant'),
+                    output_field=FloatField()
+                )
+            ),
+            destination_count=Count('id', distinct=True),
+            voyage_count=Count('voyages', distinct=True)
+        ).order_by('-total_revenue')
+
+    def get_monthly_revenue_trend(self, months=12):
+        """Retourne l'évolution mensuelle des revenus"""
+        from django.db.models.functions import TruncMonth
+        from reservations.models import Reservation
+        
+        return Reservation.objects.annotate(
+            month=TruncMonth('date_reservation')
+        ).values('month').annotate(
+            total_revenue=Sum(
+                ExpressionWrapper(
+                    F('nb_adultes') * F('voyage__prix_adulte') +
+                    F('nb_enfants') * F('voyage__prix_enfant'),
+                    output_field=FloatField()
+                )
+            ),
+            reservation_count=Count('id')
+        ).order_by('-month')[:months]
 
     # Endpoint custom pour stats
     @action(detail=False, methods=['get'])
     def stats(self, request):
+        from django.db.models import Count, Sum, Avg, F, ExpressionWrapper, FloatField
+        from django.db.models.functions import TruncMonth
+        from decimal import Decimal
+        from reservations.models import Reservation
+
+        # Base statistics
         count = Destination.objects.count()
+
+        # Most popular destinations
         popular = Destination.objects.annotate(
-            reservation_count=models.Count('voyages__reservations')
-        ).order_by('-reservation_count')[:3]
+            reservation_count=Count('voyages__reservations', distinct=True),
+            total_revenue=Sum(
+                ExpressionWrapper(
+                    F('voyages__reservations__nombre_adultes') * F('voyages__prix') +
+                    F('voyages__reservations__nombre_enfants') * (F('voyages__prix') * Decimal('0.7')),
+                    output_field=FloatField()
+                )
+            ),
+        ).order_by('-reservation_count')[:5]
+
+        # Statistics by country
+        countries = Destination.objects.values('pays').annotate(
+            count=Count('id', distinct=True),
+            reservations=Count('voyages__reservations', distinct=True),
+            revenue=Sum(
+                ExpressionWrapper(
+                    F('voyages__reservations__nombre_adultes') * F('voyages__prix') +
+                    F('voyages__reservations__nombre_enfants') * (F('voyages__prix') * Decimal('0.7')),
+                    output_field=FloatField()
+                )
+            )
+        ).order_by('-reservations')
+
+        # Monthly statistics
+        monthly_stats = Reservation.objects.annotate(
+            month=TruncMonth('date_reservation')
+        ).values('month').annotate(
+            count=Count('id'),
+            revenue=Sum(
+                ExpressionWrapper(
+                    F('nombre_adultes') * F('voyage__prix') +
+                    F('nombre_enfants') * (F('voyage__prix') * Decimal('0.7')),
+                    output_field=FloatField()
+                )
+            )
+        ).order_by('month')[:12]
+
         serializer = self.get_serializer(popular, many=True)
+        
         return Response({
             'total_destinations': count,
-            'most_popular': serializer.data
+            'most_popular': serializer.data,
+            'by_country': list(countries)[:5],
+            'monthly_stats': list(monthly_stats),
+            'total_reservations': Reservation.objects.count(),
+            'total_revenue': sum(d.total_revenue or 0 for d in popular)  # Changé d['total_revenue'] en d.total_revenue
         })
+
 
 class VoyageViewSet(viewsets.ModelViewSet):
     queryset = Voyage.objects.select_related('destination').prefetch_related(

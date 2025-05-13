@@ -3,6 +3,8 @@ from django.conf import settings
 from voyages.models import Voyage
 from django.core.exceptions import ValidationError
 from decimal import Decimal
+from django.db.models import Q, Sum
+import uuid
 
 class Reservation(models.Model):
     voyage = models.ForeignKey(
@@ -54,7 +56,13 @@ class Reservation(models.Model):
         verbose_name = "Réservation"
         verbose_name_plural = "Réservations"
         ordering = ['-date_reservation']
-        unique_together = ['voyage', 'utilisateur']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['utilisateur', 'voyage'],
+                name='unique_user_voyage',
+                condition=~Q(statut='annulee')  # Permet plusieurs réservations si annulées
+            )
+        ]
 
     def __str__(self):
         return f"Réservation #{self.id} - {self.utilisateur.email} pour {self.voyage}"
@@ -65,6 +73,13 @@ class Reservation(models.Model):
             raise ValidationError("Le nombre d'adultes doit être supérieur à 0.")
         if self.nombre_enfants < 0:
             raise ValidationError("Le nombre d'enfants ne peut pas être négatif.")
+
+    def est_payee(self):
+        """Vérifie si la réservation est complètement payée"""
+        total_paye = self.paiements.filter(statut='complete').aggregate(
+            total=Sum('montant')
+        )['total'] or 0
+        return total_paye >= self.prix_total
 
     @property
     def total_participants(self):
@@ -122,6 +137,8 @@ class Paiement(models.Model):
     reference = models.CharField(
         max_length=100, 
         unique=True,
+        default=uuid.uuid4,  # Génère automatiquement un UUID
+        editable=False,      # Empêche la modification manuelle
         verbose_name="Référence transaction"
     )
     date_paiement = models.DateTimeField(

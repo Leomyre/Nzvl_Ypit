@@ -4,6 +4,8 @@ from voyages.models import Voyage
 from users.models import User
 from voyages.serializers import VoyageSerializer
 from users.serializers import UserSerializer
+from decimal import Decimal
+import uuid
 
 class ReservationSerializer(serializers.ModelSerializer):
     voyage = VoyageSerializer(read_only=True)
@@ -12,7 +14,6 @@ class ReservationSerializer(serializers.ModelSerializer):
         source='voyage',
         write_only=True
     )
-    date_depart = serializers.DateField(source='Reservation.date_depart', read_only=True)
     utilisateur = UserSerializer(read_only=True)
     prix_total = serializers.SerializerMethodField()
     responsable_voyage = serializers.SerializerMethodField()
@@ -43,6 +44,32 @@ class ReservationSerializer(serializers.ModelSerializer):
     def get_responsable_voyage(self, obj):
         responsable = obj.get_responsable()
         return responsable.email if responsable else None
+    
+    def validate(self, data):
+        voyage = data.get('voyage') or self.instance.voyage if self.instance else None
+        utilisateur = self.context['request'].user
+        
+        if voyage and utilisateur:
+            # Vérifie les réservations existantes
+            reservation_existante = Reservation.objects.filter(
+                utilisateur=utilisateur,
+                voyage=voyage
+            ).exclude(statut='annulee').first()
+            
+            if reservation_existante:
+                # Vérifie si déjà payée
+                if reservation_existante.est_payee():
+                    raise serializers.ValidationError(
+                        "Vous avez déjà une réservation payée pour ce voyage"
+                    )
+                # Si non payée, on permet la mise à jour
+                if self.instance is None:  # Nouvelle tentative de réservation
+                    raise serializers.ValidationError(
+                        "Vous avez déjà une réservation en cours pour ce voyage. "
+                        "Veuillez compléter le paiement."
+                    )
+        
+        return data
     
     def get_statut(self, obj):
         dernier_paiement = obj.paiements.order_by('-date_paiement').first()
@@ -77,17 +104,17 @@ class PaiementSerializer(serializers.ModelSerializer):
             'methode',
             'methode_display',
             'statut',
-            'statut_display',
             'reference',
+            'statut_display',
             'date_paiement',
             'date_mise_a_jour',
             'details',
             'reste_a_payer'
         ]
-        read_only_fields = ['date_paiement', 'date_mise_a_jour', 'reste_a_payer']
         extra_kwargs = {
-            'reference': {'validators': []}  # Validation personnalisée dans clean
+            'reference': {'read_only': True}  # Empêche la modification via l'API
         }
+        read_only_fields = ['date_paiement', 'date_mise_a_jour', 'reste_a_payer']
 
     def get_reservation_info(self, obj):
         return {
@@ -101,7 +128,7 @@ class PaiementSerializer(serializers.ModelSerializer):
         # Validation du montant pour les nouveaux paiements
         if self.instance is None and 'montant' in data:
             reservation = data.get('reservation') or self.context.get('reservation')
-            if data['montant'] > reservation.prix_total * 1.1:
+            if data['montant'] > reservation.prix_total * Decimal('1.1'):
                 raise serializers.ValidationError(
                     "Le montant ne peut excéder 110% du prix total"
                 )
@@ -109,12 +136,9 @@ class PaiementSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Vérifie que la réservation n'a pas déjà un paiement complet
-        reservation = validated_data['reservation']
-        if reservation.paiements.filter(statut='complete').exists():
-            raise serializers.ValidationError(
-                "Cette réservation a déjà un paiement complet"
-            )
+        # Génère une référence unique si elle n'est pas fournie
+        if 'reference' not in validated_data:
+            validated_data['reference'] = str(uuid.uuid4())
         
         return super().create(validated_data)
     
