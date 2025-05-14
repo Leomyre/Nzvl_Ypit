@@ -10,7 +10,7 @@ from django.db.models.functions import TruncMonth
 from .models import Destination, Voyage, ProgrammeJour, Inclusion, Activite, Avis, HistoriqueConsultation
 from .serializers import (
     DestinationSerializer, VoyageSerializer, VoyageDetailSerializer,
-    ProgrammeJourSerializer, InclusionSerializer, ActiviteSerializer,
+    ProgrammeJourSerializer,  ActiviteSerializer,
     AvisSerializer, CreateAvisSerializer, HistoriqueConsultationSerializer
 )
 from decimal import Decimal
@@ -83,8 +83,8 @@ class DestinationViewSet(viewsets.ModelViewSet):
         return Voyage.objects.aggregate(
             total_revenue=Sum(
                 ExpressionWrapper(
-                    F('reservations__nb_adultes') * F('prix_adulte') + 
-                    F('reservations__nb_enfants') * F('prix_enfant'),
+                    F('reservations__nombre_adultes') * F('prix') + 
+                    F('reservations__nombre_enfants') * F('prix') * Decimal("0.7"),
                     output_field=FloatField()
                 )
             )
@@ -95,17 +95,17 @@ class DestinationViewSet(viewsets.ModelViewSet):
         from .models import Destination
         
         return Destination.objects.annotate(
-            adult_reservations=Sum('voyages__reservations__nb_adultes'),
-            child_reservations=Sum('voyages__reservations__nb_enfants'),
+            adult_reservations=Sum('voyages__reservations__nombre_adultes'),
+            child_reservations=Sum('voyages__reservations__nombre_enfants'),
             adult_revenue=Sum(
                 ExpressionWrapper(
-                    F('voyages__reservations__nb_adultes') * F('voyages__prix_adulte'),
+                    F('voyages__reservations__nombre_adultes') * F('voyages__prix'),
                     output_field=FloatField()
                 )
             ),
             child_revenue=Sum(
                 ExpressionWrapper(
-                    F('voyages__reservations__nb_enfants') * F('voyages__prix_enfant'),
+                    F('voyages__reservations__nombre_enfants') * F('voyages__prix') * Decimal("0.7"),
                     output_field=FloatField()
                 )
             ),
@@ -128,8 +128,8 @@ class DestinationViewSet(viewsets.ModelViewSet):
         return Destination.objects.values('pays').annotate(
             total_revenue=Sum(
                 ExpressionWrapper(
-                    F('voyages__reservations__nb_adultes') * F('voyages__prix_adulte') +
-                    F('voyages__reservations__nb_enfants') * F('voyages__prix_enfant'),
+                    F('voyages__reservations__nombre_adultes') * F('voyages__prix') +
+                    F('voyages__reservations__nombre_enfants') * F('voyages__prix')*Decimal("0.7"),
                     output_field=FloatField()
                 )
             ),
@@ -147,8 +147,8 @@ class DestinationViewSet(viewsets.ModelViewSet):
         ).values('month').annotate(
             total_revenue=Sum(
                 ExpressionWrapper(
-                    F('nb_adultes') * F('voyage__prix_adulte') +
-                    F('nb_enfants') * F('voyage__prix_enfant'),
+                    F('nombre_adultes') * F('voyage__prix') +
+                    F('nombre_enfants') * F('voyage__prix')* Decimal("0.7"),
                     output_field=FloatField()
                 )
             ),
@@ -240,20 +240,20 @@ class VoyageViewSet(viewsets.ModelViewSet):
         serializer = ReservationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        nb_adultes = serializer.validated_data['nb_adultes']
-        nb_enfants = serializer.validated_data['nb_enfants']
+        nombre_adultes = serializer.validated_data['nombre_adultes']
+        nombre_enfants = serializer.validated_data['nombre_enfants']
 
         # 🔥 Ici, tu peux faire ce que tu veux avec les infos : création de réservation, email, paiement, etc.
         # Exemple basique :
-        total_participants = nb_adultes + nb_enfants
+        total_participants = nombre_adultes + nombre_enfants
 
         # Enregistrer la réservation ici (non encore codé, dépend si tu veux créer un modèle Réservation)
         return Response({
             'message': 'Réservation enregistrée',
             'voyage': voyage.titre,
             'participants': total_participants,
-            'adultes': nb_adultes,
-            'enfants': nb_enfants
+            'adultes': nombre_adultes,
+            'enfants': nombre_enfants
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'])
@@ -293,19 +293,6 @@ class ProgrammeJourViewSet(viewsets.ModelViewSet):
         if response.status_code == 400:
             print("Erreur de validation PUT:", response.data)
         return response
-
-
-class InclusionViewSet(viewsets.ModelViewSet):
-    queryset = Inclusion.objects.all()
-    serializer_class = InclusionSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-
-    def get_queryset(self):
-        return self.queryset.filter(voyage_id=self.kwargs['voyage_pk'])
-
-    def perform_create(self, serializer):
-        voyage = get_object_or_404(Voyage, pk=self.kwargs['voyage_pk'])
-        serializer.save(voyage=voyage)
 
 class ActiviteViewSet(viewsets.ModelViewSet):
     queryset = Activite.objects.select_related('destination')

@@ -18,13 +18,6 @@ urlpatterns = [
          views.ProgrammeJourViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), 
          name='voyage-programmes-detail'),
     
-    path('voyages/<int:voyage_pk>/inclusions/', 
-         views.InclusionViewSet.as_view({'get': 'list', 'post': 'create'}), 
-         name='voyage-inclusions'),
-    path('voyages/<int:voyage_pk>/inclusions/<int:pk>/', 
-         views.InclusionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), 
-         name='voyage-inclusions-detail'),
-    
     path('voyages/<int:voyage_pk>/avis/', 
          views.AvisViewSet.as_view({'get': 'list', 'post': 'create'}), 
          name='voyage-avis'),

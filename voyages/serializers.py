@@ -40,26 +40,15 @@ class ProgrammeJourSerializer(serializers.ModelSerializer):
         model = ProgrammeJour
         fields = '__all__'
 
-class InclusionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Inclusion
-        fields = '__all__'
-
-class TypeVoyageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TypeVoyage
-        fields = ['id', 'nom']
-
 class VoyageSerializer(serializers.ModelSerializer):
     destination = serializers.PrimaryKeyRelatedField(queryset=Destination.objects.all())
     destination_nom = serializers.SerializerMethodField()
-    type_voyage = TypeVoyageSerializer(read_only=True)
 
     class Meta:
         model = Voyage
         fields = [
             'id', 'titre', 'description', 'ville_depart', 'destination', 'destination_nom',
-            'prix', 'niveau_confort', 'est_populaire', 'est_recommande', 'images', 'type_voyage'
+            'prix', 'niveau_confort', 'est_populaire', 'est_recommande', 'images',
         ]
 
     def validate_destination(self, value):
@@ -78,7 +67,6 @@ class VoyageSerializer(serializers.ModelSerializer):
 class VoyageDetailSerializer(serializers.ModelSerializer):
     destination = DestinationSerializer(read_only=True)
     programmes_jour = ProgrammeJourSerializer(many=True, read_only=True)
-    inclusions = InclusionSerializer(many=True, read_only=True)
     
     class Meta:
         model = Voyage
