@@ -16,11 +16,9 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api/voyages/', include('voyages.urls')),
     path('api/reservations/', include('reservations.urls')),
-    path('api/finances/', include('finances.urls')),
-    path('api/analytics/', include('analytics.urls')),
     path('api/recommandations/', include('recommandations.urls')),
-    path('api/insights/', include('insights.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/campagnes/', include('campagnes.urls')),
 ]
 
 if settings.DEBUG:

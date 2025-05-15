@@ -17,10 +17,13 @@ from decimal import Decimal
 from reservations.serializers import ReservationSerializer
 from rest_framework.views import APIView
 from django.utils.timezone import now
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.viewsets import ModelViewSet
 
 class DestinationViewSet(viewsets.ModelViewSet):
     queryset = Destination.objects.all()
     serializer_class = DestinationSerializer
+    parser_classes = [MultiPartParser, FormParser]
     permission_classes = [AllowAny]
 
      # Update (PUT/PATCH)
@@ -221,6 +224,7 @@ class VoyageViewSet(viewsets.ModelViewSet):
     queryset = Voyage.objects.select_related('destination').prefetch_related(
         'programmes_jour', 'inclusions'
     )
+    parser_classes = [MultiPartParser, FormParser]
     permission_classes = [AllowAny]  # Vous pouvez changer cela en IsAuthenticated si nécessaire.
     
     def get_serializer_class(self):

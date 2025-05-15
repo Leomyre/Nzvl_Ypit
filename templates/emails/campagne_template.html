@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Campagne</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: white;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .info {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #444;
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: #222;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #999;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            🌴 Départ imminent !
+        </div>
+        <div class="info">
+            {{ contenu|safe }}
+        </div>
+        <div class="footer">
+            Merci de votre confiance.<br>
+            L’équipe TourOpérateur
+        </div>
+    </div>
+</body>
+
+</html>

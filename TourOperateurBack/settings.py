@@ -59,9 +59,9 @@ INSTALLED_APPS = [
     'reservations',
     'finances',
     'recommandations',
-    'analytics',
     'insights',
-    'notifications'
+    'notifications',
+    'campagnes',
 
 ]
 
@@ -123,11 +123,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'TourOperateurBack.urls'
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -196,4 +197,7 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
